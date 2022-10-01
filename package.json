@@ -1,0 +1,22 @@
+{
+  "name": "remotertcapp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "rtc_server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Taukon",
+  "license": "ISC",
+  "dependencies": {
+    "@nut-tree/nut-js": "^2.3.0",
+    "browserify": "^17.0.0",
+    "express": "^4.18.1",
+    "httpolyglot": "^0.1.2",
+    "jimp": "^0.16.2",
+    "mediasoup": "^3.10.6",
+    "mediasoup-client": "^3.6.57",
+    "screenshot-desktop": "^1.12.7",
+    "socket.io": "^4.5.2"
+  }
+}
