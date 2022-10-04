@@ -46,6 +46,7 @@ let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transpor
 let directConsumerList = {};    // --- key: Consumer-DirectTransport.id, value: transport
 
 let plainProducerId;
+let ffmpegPS;	// --- ffmpeg process
 
 let sockTransportIdList = {};  // --- key: Websocket Id, value: {"producerId": transport.id, "consumerId": transport.id, "directConsumerId": transport.id}
 let sockIdList = []; // --- Websocket Id
@@ -280,6 +281,11 @@ async function mycreateWebRtcTransport() {
     };
 }
 
+// --- kill ffmpeg process when Control-C ---
+const cleanup = () => {
+    process.kill(ffmpegPS.pid+1);
+    process.kill(ffmpegPS.pid);
+}
 
 // --- Producer PlainTransport ---
 async function createPlainProducer(){
@@ -319,7 +325,7 @@ async function createPlainProducer(){
     transport.producer = videoProducer;
     plainProducerId = videoProducer.id;
     
-    exec(
+    ffmpegPS = exec(
         //"ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 4 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
         "ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -framerate 30 -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 5 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
     );
@@ -466,3 +472,4 @@ async function mykeyType(key, updown){
 }
 
 startWorker();
+process.on('SIGINT', cleanup);
