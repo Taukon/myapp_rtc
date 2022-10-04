@@ -4,20 +4,26 @@ const buttonStart = document.getElementById('start');
 
 const canvas2 = document.getElementById('screen');
 canvas2.setAttribute('tabindex', 0);
-const image = new Image();
-//let ctx = canvas2.getContext('2d');
+const video = document.createElement('video');
+
 
 let clientRtc;
+
+function updateScreen(){
+    canvas2.getContext('2d').drawImage(video, 0, 0);
+    requestAnimationFrame(updateScreen);
+}
 
 function start() {
     buttonStart.disabled = true;
 
-    image.onload = function () {
-        canvas2.width = image.width;
-        canvas2.height = image.height;
-        canvas2.getContext('2d').drawImage(image, 0, 0);
-    }
-
+////
+    //canvas2.width = 1280;
+    //canvas2.height = 720;
+    //canvas2.width = remoteVideo.width;
+    //canvas2.height = remoteVideo.height;
+    video.play();
+/////
     clientRtc = new ClientRtc();
     clientRtc.join();
 }
@@ -39,10 +45,16 @@ class ClientRtc {
         await this.createSendTransport();
         this.controlEvent()
         await this.getScreen();
+        updateScreen();
     }
 
     async createWebSocket() {
         const sock = io('/');
+        sock.on("canvas", (canvas) => {
+            canvas2.width = canvas.width;
+            canvas2.height = canvas.height;
+            console.log(canvas);
+        })
         sock.on("end", () => {
             sock.close();
         })
@@ -97,7 +109,7 @@ class ClientRtc {
                     transportId: transport.id,
                     produceParameters: parameters,
                 });
-                console.log('produceParameters:');
+                //console.log('produceParameters:');
                 //console.log(JSON.stringify(parameters));
                 callback({ id: id });
             } catch (err) {
@@ -183,14 +195,18 @@ class ClientRtc {
         this.msRecvTransport = transport;
     }
 
+/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
     async getScreen() {
-        const params = await this.sendRequest('consumeData', { transportId: this.msRecvTransport.id });
-        const consumer = await this.msRecvTransport.consumeData(params);
+        const params = await this.sendRequest('consume', { transportId: this.msRecvTransport.id, rtpCapabilities: this.msDevice.rtpCapabilities });
+        const consumer = await this.msRecvTransport.consume(params);
 
-        consumer.on('message', data => {
-            image.src = data;
-        });
+        const { track } = consumer;
+
+        video.srcObject = new MediaStream([track]);
     }
+/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
 
     // --- common use ---
 

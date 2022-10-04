@@ -3,3 +3,9 @@ server/ssl/cert.pem
 server/ssl/key.pem
 package-lock.json
 public/mediasoup-client.js
+
+ff_test.mjs
+ffcp_test.mjs
+public/index.html
+public/index.js
+test*
