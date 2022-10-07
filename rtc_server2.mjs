@@ -57,6 +57,7 @@ const limitClient = 2;
 const display = 1;
 const displayWidth = 1280;
 const displayHeight = 720;
+const framerate = 10;
 // --- end ffmpeg
 
 // --- HTTPS Server ---
@@ -233,7 +234,7 @@ io.on('connection', sock => {
 
         process.kill(pid+1);
 	    process.kill(pid);
-        console.log("delete ffmpeg process Id: " + pid);
+        console.log("delete ffmpeg process Id: " + pid + ", " + (pid + 1));
         delete sockProcessList[sock.id];
 
         delete sockTransportIdList[sock.id];
@@ -339,7 +340,7 @@ async function createPlainProducer(sockId){
 
     sockProcessList[sockId] = exec(
         //"ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 4 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
-        "ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -framerate 30 -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 5 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
+        "ffmpeg -video_size " + displayWidth + "x" + displayHeight + " -framerate " + framerate + " -f x11grab -i :" + display + ".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 5 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:" + videoRtpPort + "?rtcpport=" + videoRtcpPort + "\""
     );
 }
 
