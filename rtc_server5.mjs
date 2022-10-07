@@ -45,10 +45,10 @@ let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transpor
 
 let directConsumerList = {};    // --- key: Consumer-DirectTransport.id, value: transport
 
-let plainProducerList = {};     // --- key: Producer-plainTransport.id, value: transport
+let plainProducerTransport;     // --- Producer-plainTransport
 
-let sockTransportIdList = {};  // --- key: Websocket Id, value: {"producerId": transport.id, "consumerId": transport.id, "directConsumerId": transport.id, "plainProducerId": transport.id}
-let sockProcessList = {};   // ---key: Websocket Id, value: process
+let sockTransportIdList = {};  // --- key: Websocket Id, value: {"producerId": transport.id, "consumerId": transport.id, "directConsumerId": transport.id}
+let ffmpegPS;   // ---ffmpeg process
 let sockIdList = []; // --- Websocket Id
 
 const limitClient = 2;
@@ -94,7 +94,9 @@ io.on('connection', sock => {
     sockTransportIdList[sock.id] = {};
     sockIdList.push(sock.id);
 
-    createPlainProducer(sock.id);
+    if(sockIdList.length == 1){
+        createPlainProducer();
+    }
 
     sock.on('getRtpCapabilities', (_, callback) => {
         //console.log("ListTotal: " + Object.keys(producerList).length);
@@ -169,8 +171,7 @@ io.on('connection', sock => {
     // --- use plainProducerId: plainTransport.producer.id
     sock.on('consume', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const plainTransportId = sockTransportIdList[sock.id]["plainProducerId"];
-        const plainProducerId = plainProducerList[plainTransportId].producer.id;
+        const plainProducerId = plainProducerTransport.producer.id;
         
         const consumer = await transport.consume({
             producerId: plainProducerId,
@@ -208,8 +209,6 @@ io.on('connection', sock => {
         const producerId = sockTransportIdList[sock.id]["producerId"];
         const consumerId = sockTransportIdList[sock.id]["consumerId"];
         const directConsumerId = sockTransportIdList[sock.id]["directConsumerId"];
-        const plainProducerId = sockTransportIdList[sock.id]["plainProducerId"];
-        const pid = sockProcessList[sock.id].pid;
 
         const directTransport = directConsumerList[directConsumerId];
         console.log("delete directConsumerTransportId: " + directTransport.id);
@@ -226,21 +225,21 @@ io.on('connection', sock => {
         recvTransport.close();
         delete consumerList[consumerId];
 
-        const plainTransport = plainProducerList[plainProducerId];
-        console.log("delete plainProducerTransportId: " + plainTransport.id);
-        plainTransport.close();
-        delete plainProducerList[plainProducerId];
-
-        process.kill(pid+1);
-	    process.kill(pid);
-        console.log("delete ffmpeg process Id: " + pid);
-        delete sockProcessList[sock.id];
-
         delete sockTransportIdList[sock.id];
         const indexId = sockIdList.indexOf(sock.id);
         sockIdList.splice(indexId, 1);
-
         console.log("delete sockIdList length: " + sockIdList.length);
+
+        if (sockIdList.length == 0) {
+            const plainTransport = plainProducerTransport;
+            console.log("delete plainProducerTransportId: " + plainTransport.id);
+            plainTransport.close();
+
+            const pid = ffmpegPS.pid;
+            process.kill(pid + 1);
+            process.kill(pid);
+            console.log("delete ffmpeg process Id: " + pid);
+        }
     });
 });
 
@@ -297,7 +296,7 @@ async function mycreateWebRtcTransport() {
 
 
 // --- Producer PlainTransport ---
-async function createPlainProducer(sockId){
+async function createPlainProducer(){
     const transport = await router.createPlainTransport(
         { 
           listenIp : '127.0.0.1',
@@ -305,8 +304,7 @@ async function createPlainProducer(sockId){
           comedia  : true
     });
 
-    plainProducerList[transport.id] = transport;
-    sockTransportIdList[sockId]["plainProducerId"] = transport.id;
+    plainProducerTransport = transport;
 
     // Read the transport local RTP port.
     const videoRtpPort = transport.tuple.localPort;
@@ -335,9 +333,9 @@ async function createPlainProducer(sockId){
     });
     transport.producer = videoProducer;
 
-    //console.log("plainProducerId: "+plainProducerList[transport.id].producer.id);
+    //console.log("plainProducerId: "+plainProducerTransport.producer.id);
 
-    sockProcessList[sockId] = exec(
+    ffmpegPS = exec(
         //"ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 4 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
         "ffmpeg -video_size "+displayWidth+"x"+displayHeight+" -framerate 30 -f x11grab -i :"+display+".0 -map 0:v:0 -pix_fmt yuv420p -c:v libvpx -b:v 1000k -deadline realtime -cpu-used 5 -f tee \"[select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://127.0.0.1:"+videoRtpPort+"?rtcpport="+videoRtcpPort+"\""
     );
