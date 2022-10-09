@@ -2,7 +2,7 @@
 
 // --- ES modules ---
 import nutjs from "@nut-tree/nut-js";
-const { mouse, Point, Button, keyboard, Key} = nutjs;
+const { mouse, Point, Button, keyboard, Key, screen} = nutjs;
 import https from 'httpolyglot';
 import fs from 'fs';
 import express from 'express';
@@ -55,8 +55,8 @@ const limitClient = 2;
 
 // --- for ffmpeg
 const display = 1;
-const displayWidth = 1280;
-const displayHeight = 720;
+let displayWidth;
+let displayHeight;
 const framerate = 10;
 // --- end ffmpeg
 
@@ -91,6 +91,13 @@ import { Server } from 'socket.io';
 const io = new Server(httpsServer);
 
 io.on('connection', sock => {
+
+    screen.width().then(width => {
+        displayWidth = width;
+    });
+    screen.height().then(height => {
+       displayHeight = height; 
+    });
 
     sockTransportIdList[sock.id] = {};
     sockIdList.push(sock.id);

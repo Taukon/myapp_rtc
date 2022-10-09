@@ -2,7 +2,7 @@
 
 // --- ES modules ---
 import nutjs from "@nut-tree/nut-js";
-const { mouse, Point, Button, keyboard, Key} = nutjs;
+const { mouse, Point, Button, keyboard, Key, screen} = nutjs;
 import https from 'httpolyglot';
 import fs from 'fs';
 import express from 'express';
@@ -54,8 +54,14 @@ const limitClient = 2;
 
 // --- for ffmpeg
 const display = 1;
-const displayWidth = 1280;
-const displayHeight = 720;
+let displayWidth;
+let displayHeight;
+screen.width().then(width => {
+    displayWidth = width;
+});
+screen.height().then(height => {
+    displayHeight = height;
+});
 const framerate = 10;
 // --- end ffmpeg
 
