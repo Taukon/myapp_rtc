@@ -3,7 +3,7 @@
 const buttonStart = document.getElementById('start');
 
 const canvas2 = document.getElementById('screen');
-const audio2 = document.getElementById('audio');
+const audio = document.createElement('audio');
 canvas2.setAttribute('tabindex', 0);
 const image = new Image();
 //let ctx = canvas2.getContext('2d');
@@ -12,6 +12,7 @@ let clientRtc;
 
 function start() {
     buttonStart.disabled = true;
+    audio.play();
 
     image.onload = function () {
         canvas2.width = image.width;
@@ -201,7 +202,7 @@ class ClientRtc {
         console.log("get audio");
         const { track } = consumer;
 
-        audio2.srcObject = new MediaStream([track]);
+        audio.srcObject = new MediaStream([track]);
     }
     //////////////////////////////////////////
 
