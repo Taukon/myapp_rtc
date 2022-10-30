@@ -1,1 +1,0 @@
-cmd_Release/screenshot.node := ln -f "Release/obj.target/screenshot.node" "Release/screenshot.node" 2>/dev/null || (rm -rf "Release/screenshot.node" && cp -af "Release/obj.target/screenshot.node" "Release/screenshot.node")
