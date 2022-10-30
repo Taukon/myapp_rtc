@@ -4,7 +4,8 @@
 import nutjs from "@nut-tree/nut-js";
 const { mouse, Point, Button, keyboard, Key } = nutjs;
 
-import screenshot from 'screenshot-desktop';
+import bindings from 'bindings';
+const screenshot = bindings('screenshot');
 import https from 'httpolyglot';
 import fs from 'fs';
 import express from 'express';
@@ -409,13 +410,12 @@ async function createDirectProducer() {
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
     intervalId = setInterval(() => {
-        screenshot().then((img) => {
-            dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
-            if (dataURL !== predataURL) {
-                predataURL = dataURL;
-                dataProducer.send(dataURL);
-            }
-        });
+        const img = screenshot.screenshot();
+        dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
+        if (dataURL !== predataURL) {
+            predataURL = dataURL;
+            dataProducer.send(dataURL);
+        }
     }, interval);
 }
 

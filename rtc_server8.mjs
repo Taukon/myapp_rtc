@@ -4,7 +4,8 @@
 import nutjs from "@nut-tree/nut-js";
 const { mouse, Point, Button, keyboard, Key } = nutjs;
 
-import screenshot from 'screenshot-desktop';
+import bindings from 'bindings';
+const screenshot = bindings('screenshot');
 import https from 'httpolyglot';
 import fs from 'fs';
 import express from 'express';
@@ -39,7 +40,7 @@ const { networkInterfaces } = require("os");
  **/
 
 const MinPort = 2000;   // --- RtcMinPort
-const MaxPort = 2008;   // --- RtcMaxport
+const MaxPort = 2010;   // --- RtcMaxport
 
 const port = 3000;  // --- https Port
 
@@ -50,7 +51,6 @@ let directConsumerList = {};    // --- key: Producer-WebRtcTransport.id, value: 
 
 let intervalId;
 let direcrtDataTransport;       // --- Producer-directTransport
-let plainProducerTransport;     // --- Producer-plainTransport
 
 let sockTransportIdList = {};
 /**
@@ -63,10 +63,6 @@ let sockTransportIdList = {};
  * }
  */
 let sockIdList = []; // --- Websocket Id
-let ffmpegPS;   // ---ffmpeg process
-// --- for ffmpeg
-const pulseAudioDevice = 1;
-// --- end ffmpeg
 
 const limitClient = 2;
 
@@ -96,7 +92,7 @@ const ip_addr = getIpAddress(); // --- IP Address
 const httpsServer = https.createServer(options, app)
 httpsServer.listen(port, () => {
     console.log('listening on port: ' + port);
-    console.log('https://' + ip_addr + ':' + port + '/rtc_client4.html');
+    console.log('https://' + ip_addr + ':' + port + '/rtc_client3.html');
 })
 
 // --- WebSocket Server ---
@@ -111,7 +107,6 @@ io.on('connection', sock => {
 
     if (sockIdList.length == 1) {
         createDirectProducer();
-        createPlainProducer();
     }
 
     sock.on('getRtpCapabilities', (_, callback) => {
@@ -156,7 +151,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, sock.id);
+        createDirectConsumer(dataProducer.id, transport.id);
     });
 
 
@@ -175,8 +170,8 @@ io.on('connection', sock => {
         consumerList[transport.id] = transport;
         if(req == "screen"){
             sockTransportIdList[sock.id]["consumerScreenId"] = transport.id;
-        }else if(req == "audio"){
-            sockTransportIdList[sock.id]["consumerAudioId"] = transport.id;
+        //}else if(req == "audio"){
+            //sockTransportIdList[sock.id]["consumerAudioId"] = transport.id;
         }
     });
 
@@ -206,42 +201,6 @@ io.on('connection', sock => {
         //console.log("consumerList.length: " + Object.keys(consumerList).length);
     });
 
-    ////////////////////////////////////////////////////////
-    // --- use plainProducerId: plainTransport.producer.id
-    sock.on('consumeAudio', async (req, callback) => {
-        const transport = consumerList[req.transportId];
-        const plainProducerId = plainProducerTransport.producer.id;
-
-        const consumer = await transport.consume({
-            producerId: plainProducerId,
-            rtpCapabilities: req.rtpCapabilities,
-            paused: true,
-        })
-        const params = {
-            id: consumer.id,
-            producerId: plainProducerId,
-            kind: consumer.kind,
-            rtpParameters: consumer.rtpParameters,
-        };
-
-        consumer.on('transportclose', () => {
-            console.log('transport close from consumer');
-        })
-
-        consumer.on('producerclose', () => {
-            console.log('producer of consumer closed');
-        })
-
-        callback(params);
-
-        await consumer.resume();
-        transport.consumer = consumer;
-
-        //console.log("consumerList.length: " + Object.keys(consumerList).length);
-        //console.log("consumer audio");
-    });
-    ////////////////////////////////////////////////////////
-
 
     sock.on("disconnect", () => {
         console.log("discconect id: " + sock.id);
@@ -249,10 +208,8 @@ io.on('connection', sock => {
 
         const producerId = sockTransportIdList[sock.id]["producerId"];
         const consumerScreenId = sockTransportIdList[sock.id]["consumerScreenId"];
-        const directConsumerId = sockTransportIdList[sock.id]["directConsumerId"];
-        const consumerAudioId = sockTransportIdList[sock.id]["consumerAudioId"];
 
-        const directTransport = directConsumerList[directConsumerId];
+        const directTransport = directConsumerList[producerId];
         console.log("delete directConsumerTransportId: " + directTransport.id);
         directTransport.close();
         delete directConsumerList[producerId];
@@ -262,17 +219,10 @@ io.on('connection', sock => {
         sendTransport.close();
         delete producerList[producerId];
 
-        const recvScreenTransport = consumerList[consumerScreenId];
-        console.log("delete consumerScreenTransportId: " + recvScreenTransport.id);
-        recvScreenTransport.close();
+        const recvTransport = consumerList[consumerScreenId];
+        console.log("delete consumerTransportId: " + recvTransport.id);
+        recvTransport.close();
         delete consumerList[consumerScreenId];
-
-        
-        const recvAudioTransport = consumerList[consumerAudioId];
-        console.log("delete consumerAudioTransportId: " + recvAudioTransport.id);
-        recvAudioTransport.close();
-        delete consumerList[consumerAudioId];
-        
 
         delete sockTransportIdList[sock.id];
         const indexId = sockIdList.indexOf(sock.id);
@@ -285,17 +235,7 @@ io.on('connection', sock => {
             console.log("delete directProducerTransportId: " + directTransport.id);
             directTransport.close();
             clearInterval(intervalId);
-            console.log("delete interval id; " + intervalId);
-
-            
-            const plainTransport = plainProducerTransport;
-            console.log("delete plainProducerTransportId: " + plainTransport.id);
-            plainTransport.close();
-
-            const pid = ffmpegPS.pid;
-            process.kill(pid + 1);
-            process.kill(pid);
-            console.log("delete ffmpeg process Id: " + pid + ", " + (pid + 1));            
+            console.log("delete interval id; " + intervalId);           
         }
     });
 });
@@ -349,55 +289,6 @@ async function mycreateWebRtcTransport() {
     };
 }
 
-// --- Producer PlainTransport ---
-async function createPlainProducer() {
-    const transport = await router.createPlainTransport(
-        {
-            listenIp: '127.0.0.1',
-            rtcpMux: false,
-            comedia: true
-        });
-
-    plainProducerTransport = transport;
-
-    // Read the transport local RTP port.
-    const audioRtpPort = transport.tuple.localPort;
-    //console.log("audioRtpPort: "+audioRtpPort);
-
-    // Read the transport local RTCP port.
-    const audioRtcpPort = transport.rtcpTuple.localPort;
-    //console.log("audioRtcpPort: "+audioRtcpPort);
-
-    const audioProducer = await transport.produce(
-        {
-            kind: 'audio',
-            rtpParameters:
-            {
-                codecs:
-                    [
-                        {
-                            mimeType: 'audio/opus',
-                            clockRate: 48000,
-                            payloadType: 101,
-                            channels: 2,
-                            rtcpFeedback: [],
-                            parameters: { sprop_stereo: 1 }
-        }
-      ],
-    encodings: [{ ssrc: 11111111 }]
-}
-  });
-
-    transport.producer = audioProducer;
-
-    //console.log("plainProducerId: "+plainProducerTransport.producer.id);
-
-    ffmpegPS = exec(
-        "ffmpeg -f pulse -i " + pulseAudioDevice +" -map 0:a:0 -acodec libopus -ab 128k -ac 2 -ar 48000 -f tee \"[select = a: f = rtp: ssrc = 11111111: payload_type = 101]rtp://127.0.0.1:" + audioRtpPort + "?rtcpport=" + audioRtcpPort +"\""
-    );
-    //console.log(JSON.stringify(ffmpegPS));
-    //console.log("ffmpeg ps: " + ffmpegPS.pid);
-}
 
 // --- Producer DirectTransport ---
 async function createDirectProducer() {
@@ -409,22 +300,20 @@ async function createDirectProducer() {
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
     intervalId = setInterval(() => {
-        screenshot().then((img) => {
-            dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
-            if (dataURL !== predataURL) {
-                predataURL = dataURL;
-                dataProducer.send(dataURL);
-            }
-        });
+        const img = screenshot.screenshot();
+        dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
+        if (dataURL !== predataURL) {
+            predataURL = dataURL;
+            dataProducer.send(dataURL);
+        }
     }, interval);
 }
 
 // --- Consumer DirectTransport ---
-async function createDirectConsumer(dataProducerId, sockId) {
+async function createDirectConsumer(dataProducerId, transportId) {
     //console.log("createDirectConsumer");
     const transport = await router.createDirectTransport();
-    directConsumerList[transport.id] = transport;
-    sockTransportIdList[sockId]["directConsumerId"] = transport.id;
+    directConsumerList[transportId] = transport;
 
     const dataConsumer = await transport.consumeData({ dataProducerId: dataProducerId });
     transport.consumer = dataConsumer;
@@ -490,6 +379,8 @@ async function createDirectConsumer(dataProducerId, sockId) {
         // ---------------------------------------------
     });
 }
+
+// --- functions of nut-js ---
 
 async function mymoveMouse(x, y) {
     const target = new Point(x, y);
