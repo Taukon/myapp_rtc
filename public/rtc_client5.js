@@ -168,8 +168,9 @@ class ClientRtc {
         const params = await this.sendRequest('consumeScreen', { transportId: this.msRecvScreenTransport.id });
         const consumer = await this.msRecvScreenTransport.consumeData(params);
 
-        consumer.on('message', data => {
-            image.src = data;
+        consumer.on('message', buf => {
+            const imgBase64 = btoa(new Uint8Array(buf).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+            image.src = 'data:image/jpeg;base64,' + imgBase64;
         });
     }
 

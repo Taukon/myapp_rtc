@@ -68,7 +68,7 @@ const limitClient = 2;
 
 const interval = 100;//300;
 let predataURL; // --- Screen Image jpeg to base64
-let dataURL;    // --- Screen Image jpeg to base64
+
 
 // --- HTTPS Server ---
 const app = express();
@@ -301,7 +301,7 @@ async function createDirectProducer() {
 
     intervalId = setInterval(() => {
         const img = screenshot.screenshot();
-        dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
+        const dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
         if (dataURL !== predataURL) {
             predataURL = dataURL;
             dataProducer.send(dataURL);

@@ -13,18 +13,6 @@ import mediasoup from 'mediasoup';
 import { networkInterfaces } from "os";
 import { exec } from "child_process";
 
-//
-// --- commonJS ---
-/*
-const { mouse, Point, Button, keyboard, Key } = require("@nut-tree/nut-js");
-const screenshot = require('screenshot-desktop');
-const https = require('httpolyglot');
-const fs = require('fs');
-const express = require('express');
-const mediasoup = require('mediasoup');
-const { networkInterfaces } = require("os");
-*/
-//
 
 /**
  * Worker
@@ -72,7 +60,8 @@ const pulseAudioDevice = 1;
 const limitClient = 2;
 
 const interval = 100;//300;
-let predataURL; // --- Screen Image jpeg to base64
+
+let preImg = new Buffer.alloc(0);   // --- Screen Image Buffer jpeg 
 
 // --- HTTPS Server ---
 const app = express();
@@ -100,7 +89,7 @@ httpsServer.listen(port, () => {
 })
 
 // --- WebSocket Server ---
-//const io = require('socket.io')(httpsServer);
+
 import { Server } from 'socket.io';
 const io = new Server(httpsServer);
 
@@ -399,22 +388,24 @@ async function createPlainProducer() {
     //console.log("ffmpeg ps: " + ffmpegPS.pid);
 }
 
+
 // --- Producer DirectTransport ---
 async function createDirectProducer() {
     const transport = await router.createDirectTransport();
     direcrtDataTransport = transport;
     const dataProducer = await transport.produceData();
     transport.producer = dataProducer;
-    
+
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
     intervalId = setInterval(() => {
         const img = screenshot.screenshot();
-        const dataURL = 'data:image/jpeg;base64,' + img.toString('base64');
-        if (dataURL !== predataURL) {
-            predataURL = dataURL;
-            dataProducer.send(dataURL);
+
+        if (Buffer.compare(img, preImg) != 0) {
+            dataProducer.send('data:image/jpeg;base64,' + img.toString('base64'));
+            preImg = new Buffer.from(img.buffer);
         }
+
     }, interval);
 }
 

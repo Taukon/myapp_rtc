@@ -3,6 +3,7 @@
 const buttonStart = document.getElementById('start');
 
 const canvas2 = document.getElementById('screen');
+const audio = document.createElement('audio');
 canvas2.setAttribute('tabindex', 0);
 const image = new Image();
 //let ctx = canvas2.getContext('2d');
@@ -11,6 +12,7 @@ let clientRtc;
 
 function start() {
     buttonStart.disabled = true;
+    audio.play();
 
     image.onload = function () {
         canvas2.width = image.width;
@@ -29,6 +31,7 @@ class ClientRtc {
 
         this.msSendTransport = null;
         this.msRecvScreenTransport = null;
+        this.msRecvAudioTransport = null;
     }
 
     async join() {
@@ -36,8 +39,11 @@ class ClientRtc {
         await this.createDevice();
 
         await this.createRecvScreenTransport();
+        await this.createRecvAudioTransport();//////
         await this.createSendTransport();
-        this.controlEvent()
+        this.controlEvent();
+        // this.getScreen();
+        this.getAudio();///////
         await this.getScreen();
     }
 
@@ -168,10 +174,38 @@ class ClientRtc {
         const params = await this.sendRequest('consumeScreen', { transportId: this.msRecvScreenTransport.id });
         const consumer = await this.msRecvScreenTransport.consumeData(params);
 
-        consumer.on('message', data => {
-            image.src = data;
+        consumer.on('message', buf => {
+            const imgBase64 = btoa( new Uint8Array(buf).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+            image.src = 'data:image/jpeg;base64,' + imgBase64;
         });
     }
+
+    //////////////////////////////////////
+    async createRecvAudioTransport() {
+        const params = await this.sendRequest('createConsumerTransport', "audio");
+        const transport = this.msDevice.createRecvTransport(params);
+
+        transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+            this.sendRequest('connectConsumerTransport', {
+                transportId: transport.id,
+                dtlsParameters: dtlsParameters,
+            }).then(callback)
+                .catch(errback);
+        });
+
+        this.msRecvAudioTransport = transport;
+    }
+
+    async getAudio() {
+        const params = await this.sendRequest('consumeAudio', { transportId: this.msRecvAudioTransport.id, rtpCapabilities: this.msDevice.rtpCapabilities });
+        const consumer = await this.msRecvAudioTransport.consume(params);
+
+        console.log("get audio");
+        const { track } = consumer;
+
+        audio.srcObject = new MediaStream([track]);
+    }
+    //////////////////////////////////////////
 
     // --- common use ---
 

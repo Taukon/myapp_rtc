@@ -243,7 +243,7 @@ function keyborad(msg, updown) {
     }
     else if (msg.key.length == 1 && msg.key.match(/[0-9]/)) { //0~9
         keydata = { key: "Num" + msg.key.match(/[0-9]/), updown: updown, mod: mod };
-        console.log("Num: " + JSON.stringify(msg.key));
+        //console.log("Num: " + JSON.stringify(msg.key));
     }
     //else if (msg.key.length == 1 && (String.fromCharCode(msg.keyCode)).match(/[0-9]/)) { //1~9    
     //    console.log("Shift Num: " + JSON.stringify(msg.key));
