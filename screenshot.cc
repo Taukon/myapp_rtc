@@ -6,23 +6,15 @@
 #include <stdlib.h>
 #include <jpeglib.h>
 
-// compile with: gcc -Wall -ansi -pedantic getbg.c -o getbg -lX11 -ljpeg
-// usage: ./getbg mybg.jpg
 
-char *getJpegImg(size_t *mem_size)
+char *getJpegImg(size_t *mem_size, Display *display)
 {
-    Display *display;
     Window root;
     XImage *img;
-    int windowHeight;
-    int windowWidth;
 
-    display = XOpenDisplay(NULL);
     root = DefaultRootWindow(display);
-    windowHeight = XDisplayHeight(display, 0);
-    windowWidth = XDisplayWidth(display, 0);
 
-    img = XGetImage(display, root, 0, 0, windowWidth, windowHeight, AllPlanes, ZPixmap);
+    img = XGetImage(display, root, 0, 0, XDisplayWidth(display, 0), XDisplayHeight(display, 0), AllPlanes, ZPixmap);
 
     char *mem = NULL;
 
@@ -72,7 +64,6 @@ char *getJpegImg(size_t *mem_size)
     img->data = NULL;
     XDestroyImage(img);
 
-    XCloseDisplay(display);
     return mem;
 }
 
@@ -86,9 +77,14 @@ Display *display = NULL;
 Napi::Value Method(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
-    size_t msize;
-    char *img = getJpegImg(&msize);
 
+    if (display == NULL)
+    {
+        display = XOpenDisplay(NULL);
+    }
+    size_t msize;
+    char *img = getJpegImg(&msize, display);
+    
     return Napi::Buffer<char>::New(env, img, msize, cleanup);
 }
 
