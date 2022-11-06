@@ -130,7 +130,7 @@ class ClientRtc {
                     const data = { "key": keyevent };
                     producer.send(JSON.stringify(data));
                 }
-                console.log("keycode down: " + event.key + ' shift:' + event.shiftKey + ' ctrl:' + event.ctrlKey + ' ' + event.keyCode + ' ' + String.fromCharCode(event.keyCode));
+                //console.log("keycode down: " + event.key + ' shift:' + event.shiftKey + ' ctrl:' + event.ctrlKey + ' ' + event.keyCode + ' ' + String.fromCharCode(event.keyCode));
             }, false);
             canvas2.addEventListener('keyup', function (event) {
                 event.preventDefault();
@@ -200,7 +200,7 @@ class ClientRtc {
         const params = await this.sendRequest('consumeAudio', { transportId: this.msRecvAudioTransport.id, rtpCapabilities: this.msDevice.rtpCapabilities });
         const consumer = await this.msRecvAudioTransport.consume(params);
 
-        console.log("get audio");
+        //console.log("get audio");
         const { track } = consumer;
 
         audio.srcObject = new MediaStream([track]);

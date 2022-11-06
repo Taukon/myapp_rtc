@@ -326,7 +326,7 @@ async function mycreateWebRtcTransport() {
 async function createPlainProducer(socket) {
     const transport = await router.createPlainTransport(
         {
-            listenIp: '127.0.0.1',
+            listenIp: ip_addr,//'127.0.0.1',
             rtcpMux: false,
             comedia: true
         });

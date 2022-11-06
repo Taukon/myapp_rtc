@@ -124,7 +124,7 @@ class ClientRtc {
                     const data = { "key": keyevent };
                     producer.send(JSON.stringify(data));
                 }
-                console.log("keycode down: " + event.key + ' shift:' + event.shiftKey + ' ctrl:' + event.ctrlKey + ' ' + event.keyCode + ' ' + String.fromCharCode(event.keyCode));
+                //console.log("keycode down: " + event.key + ' shift:' + event.shiftKey + ' ctrl:' + event.ctrlKey + ' ' + event.keyCode + ' ' + String.fromCharCode(event.keyCode));
             }, false);
             canvas2.addEventListener('keyup', function (event) {
                 event.preventDefault();
