@@ -46,8 +46,8 @@ let sockTransportIdList = {};
  *      "directConsumerId": transport.id
  * }
  */
-let sockIdList = []; // --- Websocket Id
 
+let sockIdList = []; // --- Websocket Id
 
 const limitClient = 2;
 
@@ -365,7 +365,7 @@ async function createPlainProducer(socket) {
 
     //console.log("plainProducerId: "+plainProducerTransport.producer.id);
 
-    socket.emit('audio', {"rtp": audioRtpPort, "rtcp": audioRtcpPort});
+    socket.emit('audio', { "rtp": audioRtpPort, "rtcp": audioRtcpPort, "ip_addr": ip_addr });
 }
 
 

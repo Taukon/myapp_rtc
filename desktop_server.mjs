@@ -85,7 +85,7 @@ io.on('connection', socket => {
     socket.on('audio', msg => {
         console.log(msg);
         ffmpegPS = exec(
-            "ffmpeg -f pulse -i " + pulseAudioDevice + " -map 0:a:0 -acodec libopus -ab 128k -ac 2 -ar 48000 -f tee \"[select = a: f = rtp: ssrc = 11111111: payload_type = 101]rtp://127.0.0.1:" + msg.audioRtpPort + "?rtcpport=" + msg.audioRtcpPort + "\""
+            "ffmpeg -f pulse -i " + pulseAudioDevice + " -map 0:a:0 -acodec libopus -ab 128k -ac 2 -ar 48000 -f tee \"[select = a: f = rtp: ssrc = 11111111: payload_type = 101]rtp://" + msg.ip_addr + ":" + msg.audioRtpPort + "?rtcpport=" + msg.audioRtcpPort + "\""
         );
     })
 
