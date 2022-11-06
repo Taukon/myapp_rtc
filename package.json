@@ -19,6 +19,7 @@
     "node": "^19.0.0",
     "node-addon-api": "^5.0.0",
     "screenshot-desktop": "^1.12.7",
-    "socket.io": "^4.5.2"
+    "socket.io": "^4.5.2",
+    "socket.io-client": "^4.5.3"
   }
 }

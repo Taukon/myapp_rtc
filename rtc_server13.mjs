@@ -1,19 +1,15 @@
 'use strict';
 
 // --- ES modules ---
-import nutjs from "@nut-tree/nut-js";
-const { mouse, Point, Button, keyboard, Key } = nutjs;
-
-import bindings from 'bindings';
-const screenshot = bindings('screenshot');
 import https from 'httpolyglot';
 import fs from 'fs';
 import express from 'express';
 import mediasoup from 'mediasoup';
 import { networkInterfaces } from "os";
+import clientIO from 'socket.io-client';
 import { exec } from "child_process";
 
-
+exec("node desktop_server.mjs");
 /**
  * Worker
  * |-> Router
@@ -37,7 +33,6 @@ let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transpor
 
 let directConsumerList = {};    // --- key: Producer-WebRtcTransport.id, value: transport
 
-let intervalId;
 let direcrtDataTransport;       // --- Producer-directTransport
 let plainProducerTransport;     // --- Producer-plainTransport
 
@@ -52,16 +47,11 @@ let sockTransportIdList = {};
  * }
  */
 let sockIdList = []; // --- Websocket Id
-let ffmpegPS;   // ---ffmpeg process
-// --- for ffmpeg
-const pulseAudioDevice = 1;
-// --- end ffmpeg
+
 
 const limitClient = 2;
 
-const interval = 100;//300;
-
-let preImg = new Buffer.alloc(0);   // --- Screen Image Buffer jpeg 
+let desktopSocket;  // --- Desktop Server Socket
 
 // --- HTTPS Server ---
 const app = express();
@@ -84,8 +74,7 @@ const ip_addr = getIpAddress(); // --- IP Address
 
 const httpsServer = https.createServer(options, app)
 httpsServer.listen(port, () => {
-    console.log('listening on port: ' + port);
-    console.log('https://' + ip_addr + ':' + port + '/rtc_client4.html');
+    console.log('https://' + ip_addr + ':' + port + '/rtc_client6.html');
 })
 
 // --- WebSocket Server ---
@@ -99,8 +88,9 @@ io.on('connection', sock => {
     sockIdList.push(sock.id);
 
     if (sockIdList.length == 1) {
-        createDirectProducer();
-        createPlainProducer();
+        desktopSocket = clientIO.connect('http://localhost:5900');
+        createDirectProducer(desktopSocket);
+        createPlainProducer(desktopSocket);
     }
 
     sock.on('getRtpCapabilities', (_, callback) => {
@@ -145,7 +135,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, sock.id);
+        createDirectConsumer(dataProducer.id, sock.id, desktopSocket);
     });
 
 
@@ -273,18 +263,12 @@ io.on('connection', sock => {
             const directTransport = direcrtDataTransport;
             console.log("delete directProducerTransportId: " + directTransport.id);
             directTransport.close();
-            clearInterval(intervalId);
-            console.log("delete interval id; " + intervalId);
-
             
             const plainTransport = plainProducerTransport;
             console.log("delete plainProducerTransportId: " + plainTransport.id);
             plainTransport.close();
-
-            const pid = ffmpegPS.pid;
-            process.kill(pid + 1);
-            process.kill(pid);
-            console.log("delete ffmpeg process Id: " + pid + ", " + (pid + 1));            
+           
+            desktopSocket.disconnect();
         }
     });
 });
@@ -339,7 +323,7 @@ async function mycreateWebRtcTransport() {
 }
 
 // --- Producer PlainTransport ---
-async function createPlainProducer() {
+async function createPlainProducer(socket) {
     const transport = await router.createPlainTransport(
         {
             listenIp: '127.0.0.1',
@@ -381,16 +365,12 @@ async function createPlainProducer() {
 
     //console.log("plainProducerId: "+plainProducerTransport.producer.id);
 
-    ffmpegPS = exec(
-        "ffmpeg -f pulse -i " + pulseAudioDevice +" -map 0:a:0 -acodec libopus -ab 128k -ac 2 -ar 48000 -f tee \"[select = a: f = rtp: ssrc = 11111111: payload_type = 101]rtp://127.0.0.1:" + audioRtpPort + "?rtcpport=" + audioRtcpPort +"\""
-    );
-    //console.log(JSON.stringify(ffmpegPS));
-    //console.log("ffmpeg ps: " + ffmpegPS.pid);
+    socket.emit('audio', {"rtp": audioRtpPort, "rtcp": audioRtcpPort});
 }
 
 
 // --- Producer DirectTransport ---
-async function createDirectProducer() {
+async function createDirectProducer(socket) {
     const transport = await router.createDirectTransport();
     direcrtDataTransport = transport;
     const dataProducer = await transport.produceData();
@@ -398,19 +378,13 @@ async function createDirectProducer() {
 
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
-    intervalId = setInterval(() => {
-        const img = screenshot.screenshot();
-
-        if (Buffer.compare(img, preImg) != 0) {
-            dataProducer.send('data:image/jpeg;base64,' + img.toString('base64'));
-            preImg = new Buffer.from(img.buffer);
-        }
-
-    }, interval);
+    socket.on('img', data => {
+        dataProducer.send(data);
+    });
 }
 
 // --- Consumer DirectTransport ---
-async function createDirectConsumer(dataProducerId, sockId) {
+async function createDirectConsumer(dataProducerId, sockId, socket) {
     //console.log("createDirectConsumer");
     const transport = await router.createDirectTransport();
     directConsumerList[transport.id] = transport;
@@ -420,132 +394,9 @@ async function createDirectConsumer(dataProducerId, sockId) {
     transport.consumer = dataConsumer;
 
     dataConsumer.on("message", msg => {
-        const data = JSON.parse(msg.toString("utf-8"));
-        //console.log(data);
-
-        // ----------- Work nut-js ------------------
-        if (data.move != undefined) {
-            try {
-                mymoveMouse(data.move.x, data.move.y);
-                //console.log("try: "+data.move.x +" :"+ data.move.y);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-        else if (data.leftclick != undefined) {
-            try {
-                if (data.leftclick == "down") {
-                    mouse.pressButton(Button.LEFT);
-                } else if (data.leftclick == "up") {
-                    mouse.releaseButton(Button.LEFT);
-                }
-                //console.log("try leftclick: " + data.leftclick);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-        else if (data.rightclick != undefined) {
-            try {
-                mymouseClick(Button.RIGHT);
-                //console.log("try rightclick: " + data.rightclick);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-        if (data.wheel != undefined) {
-            try {
-                if (data.wheel > 0) {
-                    mouse.scrollDown(data.wheel);
-                } else {
-                    mouse.scrollUp(-1 * data.wheel);
-                }
-                //console.log("wheel: "+ data.wheel);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-        else if (data.key != undefined) {
-            try {
-                if (data.key.symbol != undefined) {
-                    mykeyType(data.key.key, data.key.updown);
-                } else {
-                    mykeyToggle(data.key.key, data.key.updown, data.key.mod);
-                }
-                //console.log("try key: " + JSON.stringify(data.key));
-
-            } catch (error) {
-                console.error(error);
-            }
-        }
-        // ---------------------------------------------
+        socket.emit('data', msg);
     });
 }
 
-async function mymoveMouse(x, y) {
-    const target = new Point(x, y);
-    await mouse.setPosition(target);
-}
-
-async function mymouseClick(button) {
-    await mouse.pressButton(button);
-    mouse.releaseButton(button);
-}
-
-async function mykeyToggle(key, updown, mod) {
-    if (key != undefined) {
-        mod.unshift(key);
-    }
-
-    if (updown == "down") {
-        await mykeyPress(mod);
-    } else if (updown == "up") {
-        await mykeyRelease(mod);
-    }
-}
-
-async function mykeyPress(key) {
-
-    //console.log("down: "+JSON.stringify(key));
-    switch (key.length) {
-        case 1:
-            await keyboard.pressKey(Key[key[0]]);
-            break;
-        case 2:
-            await keyboard.pressKey(Key[key[1]], Key[key[0]]);
-            break;
-        case 3:
-            await keyboard.pressKey(Key[key[2]], Key[key[1]], Key[key[0]]);
-            break;
-        case 4:
-            await keyboard.pressKey(Key[key[3]], Key[key[2]], Key[key[1]], Key[key[0]]);
-            break;
-    }
-}
-
-async function mykeyRelease(key) {
-
-    //console.log("up: " + JSON.stringify(key));
-    switch (key.length) {
-        case 1:
-            await keyboard.releaseKey(Key[key[0]]);
-            break;
-        case 2:
-            await keyboard.releaseKey(Key[key[1]], Key[key[0]]);
-            break;
-        case 3:
-            await keyboard.releaseKey(Key[key[2]], Key[key[1]], Key[key[0]]);
-            break;
-        case 4:
-            await keyboard.releaseKey(Key[key[3]], Key[key[2]], Key[key[1]], Key[key[0]]);
-            break;
-    }
-}
-
-async function mykeyType(key, updown) {
-    if (updown == 'down') {
-        await keyboard.type(key);
-        console.log('type: ' + key);
-    }
-}
 
 startWorker();

@@ -79,7 +79,6 @@ const ip_addr = getIpAddress(); // --- IP Address
 
 const httpsServer = https.createServer(options, app)
 httpsServer.listen(port, () => {
-    console.log('listening on port: ' + port);
     console.log('https://' + ip_addr + ':' + port + '/rtc_client5.html');
 })
 
