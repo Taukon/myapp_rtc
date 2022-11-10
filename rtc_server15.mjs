@@ -7,9 +7,11 @@ import express from 'express';
 import mediasoup from 'mediasoup';
 import { networkInterfaces } from "os";
 import clientIO from 'socket.io-client';
+import bindings from 'bindings';
+const converter = bindings('converter');
 import { exec } from "child_process";
 
-//exec("node desktop_server.mjs");
+exec("node desktop_server2.mjs");
 /**
  * Worker
  * |-> Router
@@ -152,9 +154,9 @@ io.on('connection', sock => {
         callback(params);
 
         consumerList[transport.id] = transport;
-        if(req == "screen"){
+        if (req == "screen") {
             sockTransportIdList[sock.id]["consumerScreenId"] = transport.id;
-        }else if(req == "audio"){
+        } else if (req == "audio") {
             sockTransportIdList[sock.id]["consumerAudioId"] = transport.id;
         }
     });
@@ -246,12 +248,12 @@ io.on('connection', sock => {
         recvScreenTransport.close();
         delete consumerList[consumerScreenId];
 
-        
+
         const recvAudioTransport = consumerList[consumerAudioId];
         console.log("delete consumerAudioTransportId: " + recvAudioTransport.id);
         recvAudioTransport.close();
         delete consumerList[consumerAudioId];
-        
+
 
         delete sockTransportIdList[sock.id];
         const indexId = sockIdList.indexOf(sock.id);
@@ -263,11 +265,11 @@ io.on('connection', sock => {
             const directTransport = direcrtDataTransport;
             console.log("delete directProducerTransportId: " + directTransport.id);
             directTransport.close();
-            
+
             const plainTransport = plainProducerTransport;
             console.log("delete plainProducerTransportId: " + plainTransport.id);
             plainTransport.close();
-           
+
             desktopSocket.disconnect();
         }
     });
@@ -355,11 +357,11 @@ async function createPlainProducer(socket) {
                             channels: 2,
                             rtcpFeedback: [],
                             parameters: { sprop_stereo: 1 }
-        }
-      ],
-    encodings: [{ ssrc: 11111111 }]
-}
-  });
+                        }
+                    ],
+                encodings: [{ ssrc: 11111111 }]
+            }
+        });
 
     transport.producer = audioProducer;
 
@@ -378,8 +380,23 @@ async function createDirectProducer(socket) {
 
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
+    let width;
+    let height;
+    let depth;
+    let fb_bpp;
+
+    socket.on('screenData', data => {
+        width = data.width;
+        height = data.height;
+        depth = data.depth;
+        fb_bpp = data.fb_bpp;
+    })
+
     socket.on('img', data => {
-        dataProducer.send(data);
+        if (width && height && depth && fb_bpp) {
+            const imgJpeg = converter.convert(data, width, height, depth, fb_bpp);
+            dataProducer.send(imgJpeg);
+        }
     });
 }
 

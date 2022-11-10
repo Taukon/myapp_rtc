@@ -18,22 +18,21 @@ char *getJpegImg(size_t *mem_size, Display *display)
 
     char *mem = NULL;
 
-    unsigned long pixel;
     int x, y;
     char *buffer;
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer;
+    int bpp = 4;
 
     buffer = (char *)malloc(sizeof(char) * 3 * img->width * img->height);
     for (y = 0; y < img->height; y++)
     {
         for (x = 0; x < img->width; x++)
         {
-            pixel = XGetPixel(img, x, y);
-            buffer[y * img->width * 3 + x * 3 + 0] = (char)(pixel >> 16);
-            buffer[y * img->width * 3 + x * 3 + 1] = (char)((pixel & 0x00ff00) >> 8);
-            buffer[y * img->width * 3 + x * 3 + 2] = (char)(pixel & 0x0000ff);
+            buffer[(y * img->width + x) * 3 + 0] = img->data[(y * img->width + x) * bpp + 2] & 0xff;
+            buffer[(y * img->width + x) * 3 + 1] = img->data[(y * img->width + x) * bpp + 1] & 0xff;
+            buffer[(y * img->width + x) * 3 + 2] = img->data[(y * img->width + x) * bpp + 0] & 0xff;
         }
     }
 

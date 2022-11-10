@@ -7,9 +7,12 @@ import express from 'express';
 import mediasoup from 'mediasoup';
 import { networkInterfaces } from "os";
 import clientIO from 'socket.io-client';
+import bindings from 'bindings';
+const converter = bindings('converter');
 import { exec } from "child_process";
 
-//exec("node desktop_server.mjs");
+
+exec("node desktop_server2.mjs");
 /**
  * Worker
  * |-> Router
@@ -24,7 +27,7 @@ import { exec } from "child_process";
  **/
 
 const MinPort = 2000;   // --- RtcMinPort
-const MaxPort = 2008;   // --- RtcMaxport
+const MaxPort = 2010;   // --- RtcMaxport
 
 const port = 3000;  // --- https Port
 
@@ -34,7 +37,6 @@ let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transpor
 let directConsumerList = {};    // --- key: Producer-WebRtcTransport.id, value: transport
 
 let direcrtDataTransport;       // --- Producer-directTransport
-let plainProducerTransport;     // --- Producer-plainTransport
 
 let sockTransportIdList = {};
 /**
@@ -46,7 +48,6 @@ let sockTransportIdList = {};
  *      "directConsumerId": transport.id
  * }
  */
-
 let sockIdList = []; // --- Websocket Id
 
 const limitClient = 2;
@@ -74,7 +75,7 @@ const ip_addr = getIpAddress(); // --- IP Address
 
 const httpsServer = https.createServer(options, app)
 httpsServer.listen(port, () => {
-    console.log('https://' + ip_addr + ':' + port + '/rtc_client6.html');
+    console.log('https://' + ip_addr + ':' + port + '/rtc_client5.html');
 })
 
 // --- WebSocket Server ---
@@ -90,7 +91,6 @@ io.on('connection', sock => {
     if (sockIdList.length == 1) {
         desktopSocket = clientIO.connect('http://localhost:5900');
         createDirectProducer(desktopSocket);
-        createPlainProducer(desktopSocket);
     }
 
     sock.on('getRtpCapabilities', (_, callback) => {
@@ -135,7 +135,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, sock.id, desktopSocket);
+        createDirectConsumer(dataProducer.id, transport.id, desktopSocket);
     });
 
 
@@ -185,42 +185,6 @@ io.on('connection', sock => {
         //console.log("consumerList.length: " + Object.keys(consumerList).length);
     });
 
-    ////////////////////////////////////////////////////////
-    // --- use plainProducerId: plainTransport.producer.id
-    sock.on('consumeAudio', async (req, callback) => {
-        const transport = consumerList[req.transportId];
-        const plainProducerId = plainProducerTransport.producer.id;
-
-        const consumer = await transport.consume({
-            producerId: plainProducerId,
-            rtpCapabilities: req.rtpCapabilities,
-            paused: true,
-        })
-        const params = {
-            id: consumer.id,
-            producerId: plainProducerId,
-            kind: consumer.kind,
-            rtpParameters: consumer.rtpParameters,
-        };
-
-        consumer.on('transportclose', () => {
-            console.log('transport close from consumer');
-        })
-
-        consumer.on('producerclose', () => {
-            console.log('producer of consumer closed');
-        })
-
-        callback(params);
-
-        await consumer.resume();
-        transport.consumer = consumer;
-
-        //console.log("consumerList.length: " + Object.keys(consumerList).length);
-        //console.log("consumer audio");
-    });
-    ////////////////////////////////////////////////////////
-
 
     sock.on("disconnect", () => {
         console.log("discconect id: " + sock.id);
@@ -228,10 +192,8 @@ io.on('connection', sock => {
 
         const producerId = sockTransportIdList[sock.id]["producerId"];
         const consumerScreenId = sockTransportIdList[sock.id]["consumerScreenId"];
-        const directConsumerId = sockTransportIdList[sock.id]["directConsumerId"];
-        const consumerAudioId = sockTransportIdList[sock.id]["consumerAudioId"];
 
-        const directTransport = directConsumerList[directConsumerId];
+        const directTransport = directConsumerList[producerId];
         console.log("delete directConsumerTransportId: " + directTransport.id);
         directTransport.close();
         delete directConsumerList[producerId];
@@ -241,17 +203,10 @@ io.on('connection', sock => {
         sendTransport.close();
         delete producerList[producerId];
 
-        const recvScreenTransport = consumerList[consumerScreenId];
-        console.log("delete consumerScreenTransportId: " + recvScreenTransport.id);
-        recvScreenTransport.close();
+        const recvTransport = consumerList[consumerScreenId];
+        console.log("delete consumerTransportId: " + recvTransport.id);
+        recvTransport.close();
         delete consumerList[consumerScreenId];
-
-        
-        const recvAudioTransport = consumerList[consumerAudioId];
-        console.log("delete consumerAudioTransportId: " + recvAudioTransport.id);
-        recvAudioTransport.close();
-        delete consumerList[consumerAudioId];
-        
 
         delete sockTransportIdList[sock.id];
         const indexId = sockIdList.indexOf(sock.id);
@@ -263,11 +218,6 @@ io.on('connection', sock => {
             const directTransport = direcrtDataTransport;
             console.log("delete directProducerTransportId: " + directTransport.id);
             directTransport.close();
-            
-            const plainTransport = plainProducerTransport;
-            console.log("delete plainProducerTransportId: " + plainTransport.id);
-            plainTransport.close();
-           
             desktopSocket.disconnect();
         }
     });
@@ -322,52 +272,6 @@ async function mycreateWebRtcTransport() {
     };
 }
 
-// --- Producer PlainTransport ---
-async function createPlainProducer(socket) {
-    const transport = await router.createPlainTransport(
-        {
-            listenIp: ip_addr,//'127.0.0.1',
-            rtcpMux: false,
-            comedia: true
-        });
-
-    plainProducerTransport = transport;
-
-    // Read the transport local RTP port.
-    const audioRtpPort = transport.tuple.localPort;
-    //console.log("audioRtpPort: "+audioRtpPort);
-
-    // Read the transport local RTCP port.
-    const audioRtcpPort = transport.rtcpTuple.localPort;
-    //console.log("audioRtcpPort: "+audioRtcpPort);
-
-    const audioProducer = await transport.produce(
-        {
-            kind: 'audio',
-            rtpParameters:
-            {
-                codecs:
-                    [
-                        {
-                            mimeType: 'audio/opus',
-                            clockRate: 48000,
-                            payloadType: 101,
-                            channels: 2,
-                            rtcpFeedback: [],
-                            parameters: { sprop_stereo: 1 }
-        }
-      ],
-    encodings: [{ ssrc: 11111111 }]
-}
-  });
-
-    transport.producer = audioProducer;
-
-    //console.log("plainProducerId: "+plainProducerTransport.producer.id);
-
-    socket.emit('audio', { "rtp": audioRtpPort, "rtcp": audioRtcpPort, "ip_addr": ip_addr });
-}
-
 
 // --- Producer DirectTransport ---
 async function createDirectProducer(socket) {
@@ -375,20 +279,34 @@ async function createDirectProducer(socket) {
     direcrtDataTransport = transport;
     const dataProducer = await transport.produceData();
     transport.producer = dataProducer;
-
+    
     //console.log("directDataTransport produce id: " + transport.producer.id);
 
+    let width;
+    let height;
+    let depth;
+    let fb_bpp;
+
+    socket.on('screenData', data => {
+        width = data.width;
+        height = data.height;
+        depth = data.depth;
+        fb_bpp = data.fb_bpp;
+    })
+
     socket.on('img', data => {
-        dataProducer.send(data);
+        if(width && height && depth && fb_bpp){
+            const imgJpeg = converter.convert(data, width, height, depth, fb_bpp);
+            dataProducer.send(imgJpeg);
+        }
     });
 }
 
 // --- Consumer DirectTransport ---
-async function createDirectConsumer(dataProducerId, sockId, socket) {
+async function createDirectConsumer(dataProducerId, transportId, socket) {
     //console.log("createDirectConsumer");
     const transport = await router.createDirectTransport();
-    directConsumerList[transport.id] = transport;
-    sockTransportIdList[sockId]["directConsumerId"] = transport.id;
+    directConsumerList[transportId] = transport;
 
     const dataConsumer = await transport.consumeData({ dataProducerId: dataProducerId });
     transport.consumer = dataConsumer;

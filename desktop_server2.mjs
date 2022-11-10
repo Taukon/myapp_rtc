@@ -112,8 +112,16 @@ io.listen(port);
 console.log('listening on port ' + port);
 
 
-
 async function sendScreen(socketId){
+
+    let data = {
+        width: screenshot.getWidth(),
+        height: screenshot.getHeight(),
+        depth: screenshot.getDepth(),
+        fb_bpp: screenshot.getFb_bpp()
+    };
+    io.to(socketId).emit("screenData", data);
+
     intervalId = setInterval(() => {
         const img = screenshot.screenshot();
 

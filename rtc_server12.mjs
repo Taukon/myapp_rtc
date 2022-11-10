@@ -9,7 +9,7 @@ import { networkInterfaces } from "os";
 import clientIO from 'socket.io-client';
 import { exec } from "child_process";
 
-exec("node desktop_server.mjs");
+//exec("node desktop_server.mjs");
 /**
  * Worker
  * |-> Router
