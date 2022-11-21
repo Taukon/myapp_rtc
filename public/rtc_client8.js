@@ -35,7 +35,7 @@ function createWebSocket() {
 
 class ClientRtc {
     constructor(inputMessage, socket) {
-        this.desktop_address = inputMessage;
+        this.desktopAddress = inputMessage;
         this.sock = socket;
         this.msDevice = null;
 
@@ -48,9 +48,9 @@ class ClientRtc {
         this.canvas2.setAttribute('tabindex', 0);
         document.getElementById('screen').appendChild(this.canvas2);
         clientList.forEach((value, key) => {
-            if (value.desktop_address == this.desktop_address) {
+            if (value.desktopAddress == this.desktopAddress) {
                 document.getElementById('screen').removeChild(document.getElementById('screen').childNodes.item(key));
-                //console.log("key: " + key + ", " + clientList[key].desktop_address);
+                //console.log("key: " + key + ", " + clientList[key].desktopAddress);
                 //console.log(document.getElementById('screen').childNodes);
                 delete clientList[key];
                 clientList.splice(key, 1);
@@ -75,13 +75,13 @@ class ClientRtc {
         await this.createRecvAudioTransport();//////
         await this.createSendTransport();
         this.controlEvent();
-        // this.getScreen();
+
         this.getAudio();///////
         await this.getScreen();
     }
 
     async createDevice() {
-        const rtpCap = await this.sendRequest('getRtpCapabilities', this.desktop_address);
+        const rtpCap = await this.sendRequest('getRtpCapabilities', this.desktopAddress);
         const device = new MediasoupClient.Device();
         await device.load({ routerRtpCapabilities: rtpCap });
         this.msDevice = device;
@@ -90,7 +90,7 @@ class ClientRtc {
     // --- Producer ---
 
     async createSendTransport() {
-        const params = await this.sendRequest('createProducerTransport', this.desktop_address);
+        const params = await this.sendRequest('createProducerTransport', this.desktopAddress);
         const transport = this.msDevice.createSendTransport(params);
 
         transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
@@ -106,7 +106,7 @@ class ClientRtc {
                 const id = await this.sendRequest('produceData', {
                     transportId: transport.id,
                     produceParameters: parameters,
-                    desktop_address: this.desktop_address,
+                    desktopAddress: this.desktopAddress,
                 });
                 callback({ id: id });
             } catch (err) {
@@ -184,7 +184,7 @@ class ClientRtc {
     async createRecvScreenTransport() {
         const params = await this.sendRequest('createConsumerTransport', { 
             'type': 'screen', 
-            'desktop_address': this.desktop_address 
+            'desktopAddress': this.desktopAddress 
         });
         const transport = this.msDevice.createRecvTransport(params);
 
@@ -206,7 +206,7 @@ class ClientRtc {
     async getScreen() {
         const params = await this.sendRequest('consumeScreen', { 
             transportId: this.msRecvScreenTransport.id, 
-            desktop_address: this.desktop_address 
+            desktopAddress: this.desktopAddress 
         });
         const consumer = await this.msRecvScreenTransport.consumeData(params);
 
@@ -218,7 +218,7 @@ class ClientRtc {
 
     //////////////////////////////////////
     async createRecvAudioTransport() {
-        const params = await this.sendRequest('createConsumerTransport', { 'type': 'audio', 'desktop_address': this.desktop_address });
+        const params = await this.sendRequest('createConsumerTransport', { 'type': 'audio', 'desktopAddress': this.desktopAddress });
         const transport = this.msDevice.createRecvTransport(params);
 
         transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
@@ -240,7 +240,7 @@ class ClientRtc {
         const params = await this.sendRequest('consumeAudio', { 
             transportId: this.msRecvAudioTransport.id, 
             rtpCapabilities: this.msDevice.rtpCapabilities, 
-            desktop_address: this.desktop_address 
+            desktopAddress: this.desktopAddress 
         });
         const consumer = await this.msRecvAudioTransport.consume(params);
 

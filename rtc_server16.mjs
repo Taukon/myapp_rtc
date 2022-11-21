@@ -54,7 +54,7 @@ const limitClient = 2;
 
 let desktopList = {};  
 /**
- * key: desktop_address, 
+ * key: desktopAddress, 
  * value: {
  *  desktopSocket, 
  *  screenTransport, 
@@ -63,7 +63,7 @@ let desktopList = {};
  */
 
 
-//const desktop_address = "http://localhost:5900";
+//const desktopAddress = "http://localhost:5900";
 
 // --- HTTPS Server ---
 const app = express();
@@ -170,7 +170,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, transport.id, desktopList[req.desktop_address]['desktopSocket']);
+        createDirectConsumer(dataProducer.id, transport.id, desktopList[req.desktopAddress]['desktopSocket']);
     });
 
 
@@ -188,9 +188,9 @@ io.on('connection', sock => {
 
         consumerList[transport.id] = transport;
         if(req['type'] == "screen"){
-            sockTransportIdList[sock.id][req['desktop_address']]["consumerScreenId"] = transport.id;
+            sockTransportIdList[sock.id][req['desktopAddress']]["consumerScreenId"] = transport.id;
         } else if (req['type'] == "audio"){
-            sockTransportIdList[sock.id][req['desktop_address']]["consumerAudioId"] = transport.id;
+            sockTransportIdList[sock.id][req['desktopAddress']]["consumerAudioId"] = transport.id;
         }
     });
 
@@ -203,7 +203,7 @@ io.on('connection', sock => {
     // --- use direcrtProducerId: screenTransport.producer.id
     sock.on('consumeScreen', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const direcrtProducerId = desktopList[req.desktop_address]['screenTransport'].producer.id;
+        const direcrtProducerId = desktopList[req.desktopAddress]['screenTransport'].producer.id;
 
         const dataConsumer = await transport.consumeData({ dataProducerId: direcrtProducerId, });
         const params = {
@@ -319,10 +319,10 @@ async function mycreateWebRtcTransport() {
 
 
 // --- Producer DirectTransport ---
-async function createDirectProducer(desktop_address,desktopSocket) {
+async function createDirectProducer(desktopAddress,desktopSocket) {
     const transport = await router.createDirectTransport();
     
-    desktopList[desktop_address]['screenTransport'] = transport;
+    desktopList[desktopAddress]['screenTransport'] = transport;
     const dataProducer = await transport.produceData();
     transport.producer = dataProducer;
     

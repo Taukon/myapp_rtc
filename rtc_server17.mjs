@@ -35,7 +35,7 @@ let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transpor
 
 let directConsumerList = {};    // --- key: Producer-WebRtcTransport.id, value: transport
 
-let sockTransportIdList = {};   // --- key: websocket Id, value: {desktop_address: {"producerId": transportId, "consumerScreenId": transportId, "consumerAudioId": transportId}}
+let sockTransportIdList = {};   // --- key: websocket Id, value: {desktopAddress: {"producerId": transportId, "consumerScreenId": transportId, "consumerAudioId": transportId}}
 /**
  *  key: Websocket Id, 
  *  value: {
@@ -52,7 +52,7 @@ const limitClient = 2;
 
 let desktopList = {};
 /**
- * key: desktop_address, 
+ * key: desktopAddress, 
  * value: {
  *  desktopSocket, 
  *  screenTransport, 
@@ -176,7 +176,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, sock.id, req.desktop_address, desktopList[req.desktop_address]['desktopSocket']);
+        createDirectConsumer(dataProducer.id, sock.id, req.desktopAddress, desktopList[req.desktopAddress]['desktopSocket']);
     });
 
 
@@ -194,9 +194,9 @@ io.on('connection', sock => {
 
         consumerList[transport.id] = transport;
         if (req.type == "screen") {
-            sockTransportIdList[sock.id][req.desktop_address]["consumerScreenId"] = transport.id;
+            sockTransportIdList[sock.id][req.desktopAddress]["consumerScreenId"] = transport.id;
         } else if (req.type == "audio") {
-            sockTransportIdList[sock.id][req.desktop_address]["consumerAudioId"] = transport.id;
+            sockTransportIdList[sock.id][req.desktopAddress]["consumerAudioId"] = transport.id;
         }
     });
 
@@ -209,7 +209,7 @@ io.on('connection', sock => {
     // --- use direcrtProducerId: screenTransport.producer.id
     sock.on('consumeScreen', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const direcrtProducerId = desktopList[req.desktop_address]['screenTransport'].producer.id;
+        const direcrtProducerId = desktopList[req.desktopAddress]['screenTransport'].producer.id;
 
         const dataConsumer = await transport.consumeData({ dataProducerId: direcrtProducerId, });
         const params = {
@@ -230,7 +230,7 @@ io.on('connection', sock => {
     // --- use plainProducerId: plainTransport.producer.id
     sock.on('consumeAudio', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const plainProducerId = desktopList[req.desktop_address]['audioTransport'].producer.id;
+        const plainProducerId = desktopList[req.desktopAddress]['audioTransport'].producer.id;
 
         const consumer = await transport.consume({
             producerId: plainProducerId,
@@ -372,7 +372,7 @@ async function mycreateWebRtcTransport() {
 }
 
 // --- Producer PlainTransport ---
-async function createPlainProducer(desktop_address, desktopSocket) {
+async function createPlainProducer(desktopAddress, desktopSocket) {
     const transport = await router.createPlainTransport(
         {
             listenIp: ip_addr,//'127.0.0.1',
@@ -380,7 +380,7 @@ async function createPlainProducer(desktop_address, desktopSocket) {
             comedia: true
         });
 
-    desktopList[desktop_address]['audioTransport'] = transport;
+    desktopList[desktopAddress]['audioTransport'] = transport;
 
     // Read the transport local RTP port.
     const audioRtpPort = transport.tuple.localPort;
@@ -417,10 +417,10 @@ async function createPlainProducer(desktop_address, desktopSocket) {
 
 
 // --- Producer DirectTransport ---
-async function createDirectProducer(desktop_address, desktopSocket) {
+async function createDirectProducer(desktopAddress, desktopSocket) {
     const transport = await router.createDirectTransport();
 
-    desktopList[desktop_address]['screenTransport'] = transport;
+    desktopList[desktopAddress]['screenTransport'] = transport;
     const dataProducer = await transport.produceData();
     transport.producer = dataProducer;
 
@@ -447,11 +447,11 @@ async function createDirectProducer(desktop_address, desktopSocket) {
 }
 
 // --- Consumer DirectTransport ---
-async function createDirectConsumer(dataProducerId, sockId, desktop_address, desktopSocket) {
+async function createDirectConsumer(dataProducerId, sockId, desktopAddress, desktopSocket) {
     //console.log("createDirectConsumer");
     const transport = await router.createDirectTransport();
     directConsumerList[transport.id] = transport;
-    sockTransportIdList[sockId][desktop_address]["directConsumerId"] = transport.id;
+    sockTransportIdList[sockId][desktopAddress]["directConsumerId"] = transport.id;
 
     const dataConsumer = await transport.consumeData({ dataProducerId: dataProducerId });
     transport.consumer = dataConsumer;
