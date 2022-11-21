@@ -11,7 +11,7 @@ import bindings from 'bindings';
 const converter = bindings('converter');
 import { exec } from "child_process";
 
-exec("node desktop_server2.mjs");
+exec("node desktop_server2.mjs 5900");
 /**
  * Worker
  * |-> Router
@@ -26,7 +26,7 @@ exec("node desktop_server2.mjs");
  **/
 
 const MinPort = 2000;   // --- RtcMinPort
-const MaxPort = 2008;   // --- RtcMaxport
+const MaxPort = 2010;   // --- RtcMaxport
 
 const port = 3000;  // --- https Port
 
@@ -34,9 +34,6 @@ let producerList = {};  // --- key: Producer-WebRtcTransport.id, value: transpor
 let consumerList = {};  // --- key: Consumer-WebRtcTransport.id, value: transport
 
 let directConsumerList = {};    // --- key: Producer-WebRtcTransport.id, value: transport
-
-let direcrtDataTransport;       // --- Producer-directTransport
-let plainProducerTransport;     // --- Producer-plainTransport
 
 let sockTransportIdList = {};   // --- key: websocket Id, value: {desktop_address: {"producerId": transportId, "consumerScreenId": transportId, "consumerAudioId": transportId}}
 /**
@@ -53,7 +50,15 @@ let sockIdList = []; // --- Websocket Id
 
 const limitClient = 2;
 
-let desktopSocket;  // --- Desktop Server Socket
+let desktopList = {};
+/**
+ * key: desktop_address, 
+ * value: {
+ *  desktopSocket, 
+ *  screenTransport, 
+ *  audiotransport
+ * }
+ */
 
 // --- HTTPS Server ---
 const app = express();
@@ -127,10 +132,11 @@ io.on('connection', sock => {
             recvAudioTransport.close();
             delete consumerList[consumerAudioId];
 
-        } else if (sockIdList.length == 1) {
-            desktopSocket = clientIO.connect(req);
-            createDirectProducer(desktopSocket);
-            createPlainProducer(desktopSocket);
+        } else if (desktopList[req] == undefined) {
+            desktopList[req] = {};
+            desktopList[req]['desktopSocket'] = clientIO.connect(req);
+            createDirectProducer(req, desktopList[req]['desktopSocket']);
+            createPlainProducer(req, desktopList[req]['desktopSocket']);
         }
 
         sockTransportIdList[sock.id][req] = {};
@@ -170,7 +176,7 @@ io.on('connection', sock => {
         transport.producer = dataProducer;
 
         //directconsume
-        createDirectConsumer(dataProducer.id, sock.id, desktopSocket, req.desktop_address);
+        createDirectConsumer(dataProducer.id, sock.id, req.desktop_address, desktopList[req.desktop_address]['desktopSocket']);
     });
 
 
@@ -200,10 +206,10 @@ io.on('connection', sock => {
         callback({});
     });
 
-    // --- use direcrtProducerId: direcrtDataTransport.producer.id
+    // --- use direcrtProducerId: screenTransport.producer.id
     sock.on('consumeScreen', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const direcrtProducerId = direcrtDataTransport.producer.id
+        const direcrtProducerId = desktopList[req.desktop_address]['screenTransport'].producer.id;
 
         const dataConsumer = await transport.consumeData({ dataProducerId: direcrtProducerId, });
         const params = {
@@ -224,7 +230,7 @@ io.on('connection', sock => {
     // --- use plainProducerId: plainTransport.producer.id
     sock.on('consumeAudio', async (req, callback) => {
         const transport = consumerList[req.transportId];
-        const plainProducerId = plainProducerTransport.producer.id;
+        const plainProducerId = desktopList[req.desktop_address]['audioTransport'].producer.id;
 
         const consumer = await transport.consume({
             producerId: plainProducerId,
@@ -295,15 +301,23 @@ io.on('connection', sock => {
         console.log("delete sockIdList length: " + sockIdList.length);
 
         if (sockIdList.length == 0) {
-            const directTransport = direcrtDataTransport;
-            console.log("delete directProducerTransportId: " + directTransport.id);
-            directTransport.close();
+            Object.entries(desktopList).map(([key, value]) => {
+                const directScreenTransport = value['screenTransport'];
+                console.log("delete directScreenProducerTransportId: " + directScreenTransport.id);
+                directScreenTransport.close();
+                //delete value['screenTransport'];
 
-            const plainTransport = plainProducerTransport;
-            console.log("delete plainProducerTransportId: " + plainTransport.id);
-            plainTransport.close();
+                const plainAudioTransport = value['audioTransport'];
+                console.log("delete plainAudioProducerTransportId: " + plainAudioTransport.id);
+                plainAudioTransport.close();
+                //delete value['audioTransport'];
 
-            desktopSocket.disconnect();
+                const desktopSocket = value['desktopSocket'];
+                desktopSocket.disconnect();
+                //delete value['desktopSocket'];
+
+                delete desktopList[key];
+            });
         }
     });
 });
@@ -358,7 +372,7 @@ async function mycreateWebRtcTransport() {
 }
 
 // --- Producer PlainTransport ---
-async function createPlainProducer(socket) {
+async function createPlainProducer(desktop_address, desktopSocket) {
     const transport = await router.createPlainTransport(
         {
             listenIp: ip_addr,//'127.0.0.1',
@@ -366,7 +380,7 @@ async function createPlainProducer(socket) {
             comedia: true
         });
 
-    plainProducerTransport = transport;
+    desktopList[desktop_address]['audioTransport'] = transport;
 
     // Read the transport local RTP port.
     const audioRtpPort = transport.tuple.localPort;
@@ -398,16 +412,15 @@ async function createPlainProducer(socket) {
 
     transport.producer = audioProducer;
 
-    //console.log("plainProducerId: "+plainProducerTransport.producer.id);
-
-    socket.emit('audio', { "rtp": audioRtpPort, "rtcp": audioRtcpPort, "ip_addr": ip_addr });
+    desktopSocket.emit('audio', { "rtp": audioRtpPort, "rtcp": audioRtcpPort, "ip_addr": ip_addr });
 }
 
 
 // --- Producer DirectTransport ---
-async function createDirectProducer(socket) {
+async function createDirectProducer(desktop_address, desktopSocket) {
     const transport = await router.createDirectTransport();
-    direcrtDataTransport = transport;
+
+    desktopList[desktop_address]['screenTransport'] = transport;
     const dataProducer = await transport.produceData();
     transport.producer = dataProducer;
 
@@ -418,14 +431,14 @@ async function createDirectProducer(socket) {
     let depth;
     let fb_bpp;
 
-    socket.on('screenData', data => {
+    desktopSocket.on('screenData', data => {
         width = data.width;
         height = data.height;
         depth = data.depth;
         fb_bpp = data.fb_bpp;
     })
 
-    socket.on('img', data => {
+    desktopSocket.on('img', data => {
         if (width && height && depth && fb_bpp) {
             const imgJpeg = converter.convert(data, width, height, depth, fb_bpp);
             dataProducer.send(imgJpeg);
@@ -434,7 +447,7 @@ async function createDirectProducer(socket) {
 }
 
 // --- Consumer DirectTransport ---
-async function createDirectConsumer(dataProducerId, sockId, socket, desktop_address) {
+async function createDirectConsumer(dataProducerId, sockId, desktop_address, desktopSocket) {
     //console.log("createDirectConsumer");
     const transport = await router.createDirectTransport();
     directConsumerList[transport.id] = transport;
@@ -444,7 +457,7 @@ async function createDirectConsumer(dataProducerId, sockId, socket, desktop_addr
     transport.consumer = dataConsumer;
 
     dataConsumer.on("message", msg => {
-        socket.emit('data', msg);
+        desktopSocket.emit('data', msg);
     });
 }
 

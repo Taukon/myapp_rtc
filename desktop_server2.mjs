@@ -8,8 +8,11 @@ import bindings from 'bindings';
 const screenshot = bindings('screenshot');
 import { exec } from "child_process";
 
-
-const port = 5900;
+let port = 5900;
+if (process.argv[2]){
+    port = process.argv[2];
+    //console.log(process.argv[2]);
+}
 let preImg = new Buffer.alloc(0);   // --- Screen Image Buffer jpeg 
 
 const interval = 100;//300;

@@ -1,6 +1,6 @@
 'use strict';
 
-let clientRtc;
+let clientList = [];
 let socket = null;
 
 function start() {
@@ -16,8 +16,10 @@ function start() {
         socket = createWebSocket();
     }
 
-    clientRtc = new ClientRtc(inputMessage, socket);
+    const clientRtc = new ClientRtc(inputMessage, socket);
+    clientList.push(clientRtc);
     clientRtc.join();
+
 }
 
 function createWebSocket() {
@@ -41,8 +43,20 @@ class ClientRtc {
         this.msSendTransport = null;
         this.msRecvScreenTransport = null;
 
-        this.canvas2 = document.getElementById('screen');
+        //this.canvas2 = document.getElementById('screen');
+        this.canvas2 = document.createElement("canvas");
         this.canvas2.setAttribute('tabindex', 0);
+        document.getElementById('screen').appendChild(this.canvas2);
+        clientList.forEach((value, key) => {
+            if (value.desktop_address == this.desktop_address){
+                document.getElementById('screen').removeChild(document.getElementById('screen').childNodes.item(key));
+                //console.log("key: " + key + ", " + clientList[key].desktop_address);
+                //console.log(document.getElementById('screen').childNodes);
+                delete clientList[key];
+                clientList.splice(key, 1);
+                //console.log("key2: " + key + ", " + clientList[key].desktop_address);
+            }
+        })
 
         this.image = new Image();
         this.image.onload = () => {
@@ -88,11 +102,16 @@ class ClientRtc {
                 const id = await this.sendRequest('produceData', {
                     transportId: transport.id,
                     produceParameters: parameters,
+                    desktop_address: this.desktop_address,
                 });
                 callback({ id: id });
             } catch (err) {
                 errback(err);
             }
+        });
+
+        transport.observer.on('close', () => {
+            transport.close();
         });
 
         this.msSendTransport = transport;
@@ -159,7 +178,10 @@ class ClientRtc {
     // --- Cousumer ---
 
     async createRecvScreenTransport() {
-        const params = await this.sendRequest('createConsumerTransport', { 'type': 'screen', 'desktop_address': this.desktop_address});
+        const params = await this.sendRequest('createConsumerTransport', { 
+            'type': 'screen', 
+            'desktop_address': this.desktop_address
+        });
         const transport = this.msDevice.createRecvTransport(params);
 
         transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
@@ -170,11 +192,18 @@ class ClientRtc {
                 .catch(errback);
         });
 
+        transport.observer.on('close', () => {
+            transport.close();
+        });
+
         this.msRecvScreenTransport = transport;
     }
 
     async getScreen() {
-        const params = await this.sendRequest('consumeScreen', { transportId: this.msRecvScreenTransport.id });
+        const params = await this.sendRequest('consumeScreen', { 
+            transportId: this.msRecvScreenTransport.id, 
+            desktop_address: this.desktop_address 
+        });
         const consumer = await this.msRecvScreenTransport.consumeData(params);
 
         consumer.on('message', buf => {
